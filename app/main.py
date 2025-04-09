@@ -100,9 +100,9 @@ safety_settings_g2 = [
 
 # 添加默认的搜索工具配置
 ENABLE_SEARCH = os.environ.get("ENABLE_SEARCH", "true").lower() == "true"
-DEFAULT_SEARCH_TOOL = [{"googleSearch": {}}] if ENABLE_SEARCH else []
 tool_settings = {
-    "tools": DEFAULT_SEARCH_TOOL
+    "safety_settings": safety_settings,
+    "tools": [{"googleSearch": {}}] if ENABLE_SEARCH else []
 }
 
 key_manager = APIKeyManager() # 实例化 APIKeyManager，栈会在 __init__ 中初始化
@@ -195,8 +195,8 @@ async def process_request(chat_request: ChatCompletionRequest, http_request: Req
 
     # 合并安全设置和工具配置
     request_config = {
-        "safetySettings": safety_settings_g2 if 'gemini-2.0-flash-exp' in chat_request.model else safety_settings,
-        **tool_settings  # 添加工具配置
+        **tool_settings,  # 包含安全设置和工具配置
+        "safety_settings": safety_settings_g2 if 'gemini-2.0-flash-exp' in chat_request.model else safety_settings
     }
 
     retry_attempts = len(key_manager.api_keys) if key_manager.api_keys else 1 # 重试次数等于密钥数量，至少尝试 1 次
