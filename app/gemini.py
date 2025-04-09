@@ -190,6 +190,7 @@ class GeminiClient:
         }
         if system_instruction:
             data["system_instruction"] = system_instruction
+        logger.info(f"完整请求payload:\n{json.dumps(data, indent=2, ensure_ascii=False)}")
         response = requests.post(url, headers=headers, json=data)
         response.raise_for_status()
         return ResponseWrapper(response.json())
@@ -259,7 +260,7 @@ class GeminiClient:
                     if item.get('type') == 'text':
                         text_content = item.get('text', '')
                         logger.info(f"项目 {j}: 文本内容 '{text_content[:30]}...'")
-                        parts.append({"text": text_content})
+                        parts.append({"text": text_content})  # 保持单个text字段
                     elif item.get('type') == 'image_url':
                         image_data = item.get('image_url', {}).get('url', '')
                         logger.info(f"项目 {j}: 图片URL (长度: {len(image_data) if image_data else 0})")
@@ -269,8 +270,8 @@ class GeminiClient:
                                 mime_type, base64_data = image_data.split(';')[0].split(':')[1], image_data.split(',')[1]
                                 logger.info(f"图片 {j}: MIME类型 '{mime_type}', Base64数据长度: {len(base64_data)}")
                                 parts.append({
-                                    "inlineData": {  # 修改为 inlineData 以匹配官方格式
-                                        "mimeType": mime_type,  # 修改为 mimeType
+                                    "inlineData": {
+                                        "mimeType": mime_type,
                                         "data": base64_data
                                     }
                                 })
