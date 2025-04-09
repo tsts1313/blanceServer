@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Optional, Dict, Any, List
 import httpx
 import logging
+import base64
 
 logger = logging.getLogger('my_logger')
 
@@ -268,8 +269,8 @@ class GeminiClient:
                                 mime_type, base64_data = image_data.split(';')[0].split(':')[1], image_data.split(',')[1]
                                 logger.info(f"图片 {j}: MIME类型 '{mime_type}', Base64数据长度: {len(base64_data)}")
                                 parts.append({
-                                    "inline_data": {
-                                        "mime_type": mime_type,
+                                    "inlineData": {  # 修改为 inlineData 以匹配官方格式
+                                        "mimeType": mime_type,  # 修改为 mimeType
                                         "data": base64_data
                                     }
                                 })
@@ -278,9 +279,22 @@ class GeminiClient:
                                 logger.error(f"处理图片 {j} 时出错: {str(e)}, {error_msg}")
                                 errors.append(error_msg)
                         else:
-                            error_msg = f"Invalid image URL format for item: {item}"
-                            logger.error(f"图片 {j} 格式错误: {error_msg}")
-                            errors.append(error_msg)
+                            # 处理普通URL的情况，需要下载并转换为base64
+                            try:
+                                response = requests.get(image_data)
+                                response.raise_for_status()
+                                mime_type = response.headers.get('Content-Type', 'image/jpeg')
+                                base64_data = base64.b64encode(response.content).decode('utf-8')
+                                parts.append({
+                                    "inlineData": {
+                                        "mimeType": mime_type,
+                                        "data": base64_data
+                                    }
+                                })
+                            except Exception as e:
+                                error_msg = f"Failed to download image: {str(e)}"
+                                logger.error(f"处理图片 {j} 时出错: {error_msg}")
+                                errors.append(error_msg)
                 
                 logger.info(f"多模态内容处理完成: 生成了 {len(parts)} 个部分")
                 
