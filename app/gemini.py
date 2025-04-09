@@ -188,8 +188,10 @@ class GeminiClient:
             },
             "safetySettings": safety_settings,
         }
+        
         if system_instruction:
             data["system_instruction"] = system_instruction
+
         logger.info(f"完整请求payload:\n{json.dumps(data, indent=2, ensure_ascii=False)}")
         response = requests.post(url, headers=headers, json=data)
         response.raise_for_status()
@@ -253,22 +255,26 @@ class GeminiClient:
                 for j, item in enumerate(content):
                     # 检查item是否为字典
                     if not isinstance(item, dict):
-                        logger.error(f"项目 {j} 不是字典: {type(item).__name__}")
+                        #logger.error(f"项目 {j} 不是字典: {type(item).__name__}")
                         errors.append(f"Invalid item type: {type(item).__name__}")
                         continue
                         
                     if item.get('type') == 'text':
                         text_content = item.get('text', '')
-                        logger.info(f"项目 {j}: 文本内容 '{text_content[:30]}...'")
-                        parts.append({"text": text_content})  # 保持单个text字段
+                        # 确保text_content是字符串
+                        if isinstance(text_content, list):
+                            #logger.warning(f"文本内容不应为数组，已自动转换")
+                            text_content = ' '.join([str(x) for x in text_content])
+                        #logger.info(f"项目 {j}: 文本内容 '{text_content[:30]}...'")
+                        parts.append({"text": text_content})
                     elif item.get('type') == 'image_url':
                         image_data = item.get('image_url', {}).get('url', '')
-                        logger.info(f"项目 {j}: 图片URL (长度: {len(image_data) if image_data else 0})")
+                        #logger.info(f"项目 {j}: 图片URL (长度: {len(image_data) if image_data else 0})")
                         
                         if image_data.startswith('data:image/'):
                             try:
                                 mime_type, base64_data = image_data.split(';')[0].split(':')[1], image_data.split(',')[1]
-                                logger.info(f"图片 {j}: MIME类型 '{mime_type}', Base64数据长度: {len(base64_data)}")
+                                #logger.info(f"图片 {j}: MIME类型 '{mime_type}', Base64数据长度: {len(base64_data)}")
                                 parts.append({
                                     "inlineData": {
                                         "mimeType": mime_type,
