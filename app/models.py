@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 
 class Message(BaseModel):
     role: str
-    content: str
+    content: Union[str, List[Dict[str, Any]]]  
 
 class ChatCompletionRequest(BaseModel):
     model: str
