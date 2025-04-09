@@ -193,7 +193,7 @@ class GeminiClient:
         response.raise_for_status()
         return ResponseWrapper(response.json())
 
-    def convert_messages(self, messages, use_system_prompt=False):
+        def convert_messages(self, messages, use_system_prompt=False):
         gemini_history = []
         errors = []
         system_instruction_text = ""
@@ -207,37 +207,38 @@ class GeminiClient:
             
             logger.info(f"处理消息 {i}: role={role}, 内容类型={type(content).__name__}")
 
+            # 检查是否是字符串化的JSON数组
+            if isinstance(content, str) and content.startswith('[{') and content.endswith('}]'):
+                logger.info(f"检测到可能是字符串化的JSON数组，尝试解析: {content[:50]}...")
+                try:
+                    # 尝试将字符串解析为JSON
+                    parsed_content = json.loads(content)
+                    if isinstance(parsed_content, list):
+                        logger.info(f"成功解析为JSON数组，包含 {len(parsed_content)} 个项目")
+                        # 将解析后的内容替换原始内容，然后按列表处理
+                        content = parsed_content
+                except json.JSONDecodeError as e:
+                    logger.error(f"JSON解析失败: {str(e)}")
+                    # 继续按字符串处理
+            
             if isinstance(content, str):
                 # 处理文本内容的代码保持不变
-                if is_system_phase and role == 'system':
-                    if system_instruction_text:
-                        system_instruction_text += "\n" + content
-                    else:
-                        system_instruction_text = content
-                else:
-                    is_system_phase = False
-
-                    if role in ['user', 'system']:
-                        role_to_use = 'user'
-                    elif role == 'assistant':
-                        role_to_use = 'model'
-                    else:
-                        errors.append(f"Invalid role: {role}")
-                        continue
-
-                    if gemini_history and gemini_history[-1]['role'] == role_to_use:
-                        gemini_history[-1]['parts'].append({"text": content})
-                    else:
-                        gemini_history.append(
-                            {"role": role_to_use, "parts": [{"text": content}]})
+                # ... 现有代码 ...
             elif isinstance(content, list):
                 parts = []
                 logger.info(f"处理多模态内容: 包含 {len(content)} 个项目")
                 
                 for j, item in enumerate(content):
+                    # 检查item是否为字典
+                    if not isinstance(item, dict):
+                        logger.error(f"项目 {j} 不是字典: {type(item).__name__}")
+                        errors.append(f"Invalid item type: {type(item).__name__}")
+                        continue
+                        
                     if item.get('type') == 'text':
-                        logger.info(f"项目 {j}: 文本内容 '{item.get('text')[:30]}...'")
-                        parts.append({"text": item.get('text')})
+                        text_content = item.get('text', '')
+                        logger.info(f"项目 {j}: 文本内容 '{text_content[:30]}...'")
+                        parts.append({"text": text_content})
                     elif item.get('type') == 'image_url':
                         image_data = item.get('image_url', {}).get('url', '')
                         logger.info(f"项目 {j}: 图片URL (长度: {len(image_data) if image_data else 0})")
