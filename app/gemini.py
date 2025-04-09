@@ -295,7 +295,7 @@ class GeminiClient:
                                 self._process_content_item(sub_item, parts, j, errors)
                     # 处理嵌套字典的情况，特别是当字典中包含text字段且text字段是列表时
                     elif isinstance(item, dict) and 'type' in item and item['type'] == 'text' and isinstance(item.get('text'), list):
-                        logger.info(f"检测到嵌套的多模态内容: {item}")
+                        #logger.info(f"检测到嵌套的多模态内容: {item}")
                         for sub_item in item['text']:
                             if isinstance(sub_item, (dict, str)):
                                 self._process_content_item(sub_item, parts, j, errors)
@@ -317,10 +317,10 @@ class GeminiClient:
                         continue
                     
                     if gemini_history and gemini_history[-1]['role'] == role_to_use:
-                        logger.info(f"将 {len(parts)} 个部分添加到现有的 {role_to_use} 消息中")
+                        #logger.info(f"将 {len(parts)} 个部分添加到现有的 {role_to_use} 消息中")
                         gemini_history[-1]['parts'].extend(parts)
                     else:
-                        logger.info(f"创建新的 {role_to_use} 消息，包含 {len(parts)} 个部分")
+                        #logger.info(f"创建新的 {role_to_use} 消息，包含 {len(parts)} 个部分")
                         gemini_history.append(
                             {"role": role_to_use, "parts": parts})
         
