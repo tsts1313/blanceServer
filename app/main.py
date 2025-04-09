@@ -357,7 +357,7 @@ async def root():
         </style>
     </head>
     <body>
-        <h1>🤖 Gemini API 代理服务</h1>
+        <h1>🤖 多模态 Gemini API 代理服务</h1>
         
         <div class="info-box">
             <h2>🟢 运行状态</h2>
