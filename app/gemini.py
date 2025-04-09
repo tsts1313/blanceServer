@@ -192,7 +192,7 @@ class GeminiClient:
         if system_instruction:
             data["system_instruction"] = system_instruction
 
-        #logger.info(f"完整请求payload:\n{json.dumps(data, indent=2, ensure_ascii=False)}")
+        logger.info(f"完整请求payload:\n{json.dumps(data, indent=2, ensure_ascii=False)}")
         response = requests.post(url, headers=headers, json=data)
         response.raise_for_status()
         return ResponseWrapper(response.json())
@@ -250,7 +250,7 @@ class GeminiClient:
                             {"role": role_to_use, "parts": [{"text": content}]})
             elif isinstance(content, list):
                 parts = []
-                logger.info(f"处理多模态内容: 包含 {len(content)} 个项目")
+                #logger.info(f"处理多模态内容: 包含 {len(content)} 个项目")
                 
                 for j, item in enumerate(content):
                     # 检查item是否为字典
@@ -303,7 +303,7 @@ class GeminiClient:
                                 logger.error(f"处理图片 {j} 时出错: {error_msg}")
                                 errors.append(error_msg)
                 
-                logger.info(f"多模态内容处理完成: 生成了 {len(parts)} 个部分")
+                #logger.info(f"多模态内容处理完成: 生成了 {len(parts)} 个部分")
                 
                 if parts:
                     if role in ['user', 'system']:
@@ -320,7 +320,7 @@ class GeminiClient:
                         logger.info(f"将 {len(parts)} 个部分添加到现有的 {role_to_use} 消息中")
                         gemini_history[-1]['parts'].extend(parts)
                     else:
-                        logger.info(f"创建新的 {role_to_use} 消息，包含 {len(parts)} 个部分")
+                        #logger.info(f"创建新的 {role_to_use} 消息，包含 {len(parts)} 个部分")
                         gemini_history.append(
                             {"role": role_to_use, "parts": parts})
         
