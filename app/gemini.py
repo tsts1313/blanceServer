@@ -326,8 +326,9 @@ class GeminiClient:
             if system_instruction_text:
                 logger.info(f"系统指令: '{system_instruction_text[:50]}...'")
             return gemini_history, {"parts": [{"text": system_instruction_text}]}
-
-    def _process_content_item(self, item, parts, index, errors):
+            
+    @staticmethod
+    def _process_content_item(item, parts, index, errors):
         """处理单个内容项（文本或图片）"""
         # 如果是字符串，尝试解析成字典
         if isinstance(item, str):
