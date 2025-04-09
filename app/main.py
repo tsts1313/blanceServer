@@ -98,6 +98,13 @@ safety_settings_g2 = [
     }
 ]
 
+# 添加默认的搜索工具配置
+ENABLE_SEARCH = os.environ.get("ENABLE_SEARCH", "true").lower() == "true"
+DEFAULT_SEARCH_TOOL = [{"googleSearch": {}}] if ENABLE_SEARCH else []
+tool_settings = {
+    "tools": DEFAULT_SEARCH_TOOL
+}
+
 key_manager = APIKeyManager() # 实例化 APIKeyManager，栈会在 __init__ 中初始化
 current_api_key = key_manager.get_available_key()
 
@@ -186,6 +193,12 @@ async def process_request(chat_request: ChatCompletionRequest, http_request: Req
     contents, system_instruction = GeminiClient.convert_messages(
         GeminiClient, chat_request.messages)
 
+    # 合并安全设置和工具配置
+    request_config = {
+        "safetySettings": safety_settings_g2 if 'gemini-2.0-flash-exp' in chat_request.model else safety_settings,
+        **tool_settings  # 添加工具配置
+    }
+
     retry_attempts = len(key_manager.api_keys) if key_manager.api_keys else 1 # 重试次数等于密钥数量，至少尝试 1 次
     for attempt in range(1, retry_attempts + 1):
         if attempt == 1:
@@ -205,7 +218,7 @@ async def process_request(chat_request: ChatCompletionRequest, http_request: Req
             if chat_request.stream:
                 async def stream_generator():
                     try:
-                        async for chunk in gemini_client.stream_chat(chat_request, contents, safety_settings_g2 if 'gemini-2.0-flash-exp' in chat_request.model else safety_settings, system_instruction):
+                        async for chunk in gemini_client.stream_chat(chat_request, contents, request_config, system_instruction):
                             formatted_chunk = {"id": "chatcmpl-someid", "object": "chat.completion.chunk", "created": 1234567,
                                                "model": chat_request.model, "choices": [{"delta": {"role": "assistant", "content": chunk}, "index": 0, "finish_reason": None}]}
                             yield f"data: {json.dumps(formatted_chunk)}\n\n"
@@ -223,7 +236,7 @@ async def process_request(chat_request: ChatCompletionRequest, http_request: Req
             else:
                 async def run_gemini_completion():
                     try:
-                        response_content = await asyncio.to_thread(gemini_client.complete_chat, chat_request, contents, safety_settings_g2 if 'gemini-2.0-flash-exp' in chat_request.model else safety_settings, system_instruction)
+                        response_content = await asyncio.to_thread(gemini_client.complete_chat, chat_request, contents, request_config, system_instruction)
                         return response_content
                     except asyncio.CancelledError:
                         extra_log_gemini_cancel = {'key': current_api_key[:8], 'request_type': request_type, 'model': chat_request.model, 'error_message': '客户端断开导致API调用取消'}
@@ -364,6 +377,7 @@ async def root():
             <p class="status">服务运行中</p>
             <p>可用API密钥数量: {len(key_manager.api_keys)}</p>
             <p>可用模型数量: {len(GeminiClient.AVAILABLE_MODELS)}</p>
+            <p>搜索功能: <span class="feature">{'已启用' if ENABLE_SEARCH else '已禁用'}</span></p>
         </div>
 
         <div class="info-box">
