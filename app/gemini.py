@@ -108,7 +108,7 @@ class GeminiClient:
     def __init__(self, api_key: str):
         self.api_key = api_key
 
-    async def stream_chat(self, request: ChatCompletionRequest, contents, safety_settings, system_instruction):
+    async def stream_chat(self, request: ChatCompletionRequest, contents, request_config, system_instruction):
         logger.info("流式开始 →")
         api_version = "v1alpha" if "think" in request.model else "v1beta"
         url = f"https://generativelanguage.googleapis.com/{api_version}/models/{request.model}:streamGenerateContent?key={self.api_key}&alt=sse"
@@ -121,7 +121,7 @@ class GeminiClient:
                 "temperature": request.temperature,
                 "maxOutputTokens": request.max_tokens,
             },
-            "safetySettings": safety_settings,
+            **request_config
         }
         if system_instruction:
             data["system_instruction"] = system_instruction
@@ -174,7 +174,7 @@ class GeminiClient:
                     logger.info("流式结束 ←")
 
 
-    def complete_chat(self, request: ChatCompletionRequest, contents, safety_settings, system_instruction):
+    def complete_chat(self, request: ChatCompletionRequest, contents, request_config, system_instruction):
         api_version = "v1alpha" if "think" in request.model else "v1beta"
         url = f"https://generativelanguage.googleapis.com/{api_version}/models/{request.model}:generateContent?key={self.api_key}"
         headers = {
@@ -186,7 +186,7 @@ class GeminiClient:
                 "temperature": request.temperature,
                 "maxOutputTokens": request.max_tokens,
             },
-            "safetySettings": safety_settings,
+            **request_config
         }
         
         if system_instruction:
