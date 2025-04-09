@@ -288,60 +288,14 @@ class GeminiClient:
                 logger.info(f"处理多模态内容: 包含 {len(content)} 个项目")
                 
                 for j, item in enumerate(content):
-                    # 如果是字符串，尝试解析成字典
-                    if isinstance(item, str):
-                        try:
-                            item = json.loads(item.replace("'", '"'))
-                        except json.JSONDecodeError:
-                            try:
-                                item = eval(item)  # 如果 JSON 解析失败，尝试用 eval
-                            except Exception as e:
-                                logger.error(f"解析字符串到字典失败: {str(e)}")
-                                continue
-                    
-                    if not isinstance(item, dict):
-                        errors.append(f"Invalid item type: {type(item).__name__}")
-                        continue
-                        
-                    if item.get('type') == 'text':
-                        text_content = item.get('text', '')
-                        if isinstance(text_content, list):
-                            text_content = ' '.join([str(x) for x in text_content])
-                        parts.append({"text": text_content})
-                    elif item.get('type') == 'image_url':
-                        image_data = item.get('image_url', {}).get('url', '')
-                        
-                        if image_data.startswith('data:image/'):
-                            try:
-                                mime_type = image_data.split(';')[0].split(':')[1]
-                                base64_data = image_data.split(',')[1]
-                                parts.append({
-                                    "inlineData": {
-                                        "data": base64_data,
-                                        "mimeType": mime_type
-                                    }
-                                })
-                            except (IndexError, ValueError) as e:
-                                error_msg = f"Invalid data URI for image: {image_data[:30]}..."
-                                logger.error(f"处理图片 {j} 时出错: {str(e)}, {error_msg}")
-                                errors.append(error_msg)
-                        else:
-                            # 处理非data URI的图片URL
-                            try:
-                                response = requests.get(image_data)
-                                response.raise_for_status()
-                                mime_type = response.headers.get('Content-Type', 'image/jpeg')
-                                base64_data = base64.b64encode(response.content).decode('utf-8')
-                                parts.append({
-                                    "inlineData": {
-                                        "data": base64_data,
-                                        "mimeType": mime_type
-                                    }
-                                })
-                            except Exception as e:
-                                error_msg = f"无法下载图片: {image_data[:30]}..."
-                                logger.error(f"处理图片 {j} 时出错: {str(e)}, {error_msg}")
-                                errors.append(error_msg)
+                    # 处理嵌套列表的情况
+                    if isinstance(item, list):
+                        for sub_item in item:
+                            if isinstance(sub_item, (dict, str)):
+                                self._process_content_item(sub_item, parts, j, errors)
+                    # 处理字典或字符串的情况
+                    elif isinstance(item, (dict, str)):
+                        self._process_content_item(item, parts, j, errors)
                 
                 logger.info(f"多模态内容处理完成: 生成了 {len(parts)} 个部分")
                 
@@ -373,6 +327,61 @@ class GeminiClient:
                 logger.info(f"系统指令: '{system_instruction_text[:50]}...'")
             return gemini_history, {"parts": [{"text": system_instruction_text}]}
 
+    def _process_content_item(self, item, parts, index, errors):
+        """处理单个内容项（文本或图片）"""
+        # 如果是字符串，尝试解析成字典
+        if isinstance(item, str):
+            try:
+                item = json.loads(item.replace("'", '"'))
+            except json.JSONDecodeError:
+                try:
+                    item = eval(item)
+                except Exception as e:
+                    logger.error(f"解析字符串到字典失败: {str(e)}")
+                    return
+        
+        if not isinstance(item, dict):
+            errors.append(f"Invalid item type: {type(item).__name__}")
+            return
+            
+        if item.get('type') == 'text':
+            text_content = item.get('text', '')
+            if isinstance(text_content, list):
+                text_content = ' '.join([str(x) for x in text_content])
+            parts.append({"text": text_content})
+        elif item.get('type') == 'image_url':
+            image_data = item.get('image_url', {}).get('url', '')
+            
+            if image_data.startswith('data:image/'):
+                try:
+                    mime_type = image_data.split(';')[0].split(':')[1]
+                    base64_data = image_data.split(',')[1]
+                    parts.append({
+                        "inlineData": {
+                            "data": base64_data,
+                            "mimeType": mime_type
+                        }
+                    })
+                except (IndexError, ValueError) as e:
+                    error_msg = f"Invalid data URI for image: {image_data[:30]}..."
+                    logger.error(f"处理图片 {index} 时出错: {str(e)}, {error_msg}")
+                    errors.append(error_msg)
+            else:
+                try:
+                    response = requests.get(image_data)
+                    response.raise_for_status()
+                    mime_type = response.headers.get('Content-Type', 'image/jpeg')
+                    base64_data = base64.b64encode(response.content).decode('utf-8')
+                    parts.append({
+                        "inlineData": {
+                            "data": base64_data,
+                            "mimeType": mime_type
+                        }
+                    })
+                except Exception as e:
+                    error_msg = f"无法下载图片: {image_data[:30]}..."
+                    logger.error(f"处理图片 {index} 时出错: {str(e)}, {error_msg}")
+                    errors.append(error_msg)
     @staticmethod
     async def list_available_models(api_key) -> list:
         url = "https://generativelanguage.googleapis.com/v1beta/models?key={}".format(
