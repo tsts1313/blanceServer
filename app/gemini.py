@@ -252,33 +252,31 @@ class GeminiClient:
                 parts = []
                 #logger.info(f"处理多模态内容: 包含 {len(content)} 个项目")
                 
+                # 先处理所有文本内容
+                text_parts = []
+                image_parts = []
+                
                 for j, item in enumerate(content):
-                    # 检查item是否为字典
                     if not isinstance(item, dict):
-                        #logger.error(f"项目 {j} 不是字典: {type(item).__name__}")
                         errors.append(f"Invalid item type: {type(item).__name__}")
                         continue
                         
                     if item.get('type') == 'text':
                         text_content = item.get('text', '')
-                        # 确保text_content是字符串
                         if isinstance(text_content, list):
-                            #logger.warning(f"文本内容不应为数组，已自动转换")
                             text_content = ' '.join([str(x) for x in text_content])
-                        #logger.info(f"项目 {j}: 文本内容 '{text_content[:30]}...'")
-                        parts.append({"text": text_content})
+                        text_parts.append({"text": text_content})
                     elif item.get('type') == 'image_url':
                         image_data = item.get('image_url', {}).get('url', '')
-                        #logger.info(f"项目 {j}: 图片URL (长度: {len(image_data) if image_data else 0})")
                         
                         if image_data.startswith('data:image/'):
                             try:
-                                mime_type, base64_data = image_data.split(';')[0].split(':')[1], image_data.split(',')[1]
-                                #logger.info(f"图片 {j}: MIME类型 '{mime_type}', Base64数据长度: {len(base64_data)}")
-                                parts.append({
+                                mime_type = image_data.split(';')[0].split(':')[1]
+                                base64_data = image_data.split(',')[1]
+                                image_parts.append({
                                     "inlineData": {
-                                        "mimeType": mime_type,
-                                        "data": base64_data
+                                        "data": base64_data,
+                                        "mimeType": mime_type
                                     }
                                 })
                             except (IndexError, ValueError) as e:
@@ -286,16 +284,15 @@ class GeminiClient:
                                 logger.error(f"处理图片 {j} 时出错: {str(e)}, {error_msg}")
                                 errors.append(error_msg)
                         else:
-                            # 处理普通URL的情况，需要下载并转换为base64
                             try:
                                 response = requests.get(image_data)
                                 response.raise_for_status()
                                 mime_type = response.headers.get('Content-Type', 'image/jpeg')
                                 base64_data = base64.b64encode(response.content).decode('utf-8')
-                                parts.append({
+                                image_parts.append({
                                     "inlineData": {
-                                        "mimeType": mime_type,
-                                        "data": base64_data
+                                        "data": base64_data,
+                                        "mimeType": mime_type
                                     }
                                 })
                             except Exception as e:
@@ -303,7 +300,11 @@ class GeminiClient:
                                 logger.error(f"处理图片 {j} 时出错: {error_msg}")
                                 errors.append(error_msg)
                 
-                #logger.info(f"多模态内容处理完成: 生成了 {len(parts)} 个部分")
+                # 按照官方示例的格式组合内容
+                parts.extend(image_parts)
+                parts.extend(text_parts)
+                
+                logger.info(f"多模态内容处理完成: 生成了 {len(parts)} 个部分")
                 
                 if parts:
                     if role in ['user', 'system']:
@@ -320,7 +321,7 @@ class GeminiClient:
                         logger.info(f"将 {len(parts)} 个部分添加到现有的 {role_to_use} 消息中")
                         gemini_history[-1]['parts'].extend(parts)
                     else:
-                        #logger.info(f"创建新的 {role_to_use} 消息，包含 {len(parts)} 个部分")
+                        logger.info(f"创建新的 {role_to_use} 消息，包含 {len(parts)} 个部分")
                         gemini_history.append(
                             {"role": role_to_use, "parts": parts})
         
