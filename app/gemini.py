@@ -192,7 +192,7 @@ class GeminiClient:
         if system_instruction:
             data["system_instruction"] = system_instruction
 
-        logger.info(f"完整请求payload:\n{json.dumps(data, indent=2, ensure_ascii=False)}")
+        #logger.info(f"完整请求payload:\n{json.dumps(data, indent=2, ensure_ascii=False)}")
         response = requests.post(url, headers=headers, json=data)
         response.raise_for_status()
         return ResponseWrapper(response.json())
@@ -209,16 +209,16 @@ class GeminiClient:
             role = message.role
             content = message.content
             
-            logger.info(f"处理消息 {i}: role={role}, 内容类型={type(content).__name__}")
+            #logger.info(f"处理消息 {i}: role={role}, 内容类型={type(content).__name__}")
 
             # 检查是否是字符串化的JSON数组
             if isinstance(content, str) and content.startswith('[{') and content.endswith('}]'):
-                logger.info(f"检测到可能是字符串化的JSON数组，尝试解析: {content[:50]}...")
+                #logger.info(f"检测到可能是字符串化的JSON数组，尝试解析: {content[:50]}...")
                 try:
                     # 尝试将字符串解析为JSON
                     parsed_content = json.loads(content)
                     if isinstance(parsed_content, list):
-                        logger.info(f"成功解析为JSON数组，包含 {len(parsed_content)} 个项目")
+                        #logger.info(f"成功解析为JSON数组，包含 {len(parsed_content)} 个项目")
                         # 将解析后的内容替换原始内容，然后按列表处理
                         content = parsed_content
                 except json.JSONDecodeError as e:
@@ -285,7 +285,7 @@ class GeminiClient:
                             {"role": role_to_use, "parts": [{"text": content}]})
             elif isinstance(content, list):
                 parts = []
-                logger.info(f"处理多模态内容: 包含 {len(content)} 个项目")
+                #logger.info(f"处理多模态内容: 包含 {len(content)} 个项目")
                 
                 for j, item in enumerate(content):
                     # 处理嵌套列表的情况
@@ -303,7 +303,7 @@ class GeminiClient:
                     elif isinstance(item, (dict, str)):
                         self._process_content_item(item, parts, j, errors)
                 
-                logger.info(f"多模态内容处理完成: 生成了 {len(parts)} 个部分")
+                #logger.info(f"多模态内容处理完成: 生成了 {len(parts)} 个部分")
                 
                 if parts:
                     if role in ['user', 'system']:
