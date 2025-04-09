@@ -198,12 +198,17 @@ class GeminiClient:
         errors = []
         system_instruction_text = ""
         is_system_phase = use_system_prompt
-        logger.info(f"Converting {len(messages)} messages to Gemini format")
+        
+        logger.info(f"开始转换 {len(messages)} 条消息到Gemini格式")
         
         for i, message in enumerate(messages):
             role = message.role
             content = message.content
+            
+            logger.info(f"处理消息 {i}: role={role}, 内容类型={type(content).__name__}")
+
             if isinstance(content, str):
+                # 处理文本内容的代码保持不变
                 if is_system_phase and role == 'system':
                     if system_instruction_text:
                         system_instruction_text += "\n" + content
@@ -229,18 +234,18 @@ class GeminiClient:
                 parts = []
                 logger.info(f"处理多模态内容: 包含 {len(content)} 个项目")
                 
-                for i, item in enumerate(content):
+                for j, item in enumerate(content):
                     if item.get('type') == 'text':
-                        logger.info(f"项目 {i}: 文本内容 '{item.get('text')[:30]}...'")
+                        logger.info(f"项目 {j}: 文本内容 '{item.get('text')[:30]}...'")
                         parts.append({"text": item.get('text')})
                     elif item.get('type') == 'image_url':
                         image_data = item.get('image_url', {}).get('url', '')
-                        logger.info(f"项目 {i}: 图片URL (长度: {len(image_data) if image_data else 0})")
+                        logger.info(f"项目 {j}: 图片URL (长度: {len(image_data) if image_data else 0})")
                         
                         if image_data.startswith('data:image/'):
                             try:
                                 mime_type, base64_data = image_data.split(';')[0].split(':')[1], image_data.split(',')[1]
-                                logger.info(f"图片 {i}: MIME类型 '{mime_type}', Base64数据长度: {len(base64_data)}")
+                                logger.info(f"图片 {j}: MIME类型 '{mime_type}', Base64数据长度: {len(base64_data)}")
                                 parts.append({
                                     "inline_data": {
                                         "mime_type": mime_type,
@@ -249,11 +254,11 @@ class GeminiClient:
                                 })
                             except (IndexError, ValueError) as e:
                                 error_msg = f"Invalid data URI for image: {image_data[:30]}..."
-                                logger.error(f"处理图片 {i} 时出错: {str(e)}, {error_msg}")
+                                logger.error(f"处理图片 {j} 时出错: {str(e)}, {error_msg}")
                                 errors.append(error_msg)
                         else:
                             error_msg = f"Invalid image URL format for item: {item}"
-                            logger.error(f"图片 {i} 格式错误: {error_msg}")
+                            logger.error(f"图片 {j} 格式错误: {error_msg}")
                             errors.append(error_msg)
                 
                 logger.info(f"多模态内容处理完成: 生成了 {len(parts)} 个部分")
@@ -276,13 +281,16 @@ class GeminiClient:
                         logger.info(f"创建新的 {role_to_use} 消息，包含 {len(parts)} 个部分")
                         gemini_history.append(
                             {"role": role_to_use, "parts": parts})
-            
-            if errors:
-                logger.error(f"转换过程中发生 {len(errors)} 个错误: {errors}")
-                return errors
-            else:
-                logger.info(f"转换完成: 生成了 {len(gemini_history)} 个Gemini消息")
-                return gemini_history, {"parts": [{"text": system_instruction_text}]}
+        
+        # 这些语句应该在循环外部，与for循环保持相同的缩进级别
+        if errors:
+            logger.error(f"转换过程中发生 {len(errors)} 个错误: {errors}")
+            return errors
+        else:
+            logger.info(f"转换完成: 生成了 {len(gemini_history)} 个Gemini消息")
+            if system_instruction_text:
+                logger.info(f"系统指令: '{system_instruction_text[:50]}...'")
+            return gemini_history, {"parts": [{"text": system_instruction_text}]}
 
     @staticmethod
     async def list_available_models(api_key) -> list:
