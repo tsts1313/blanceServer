@@ -198,10 +198,11 @@ class GeminiClient:
         errors = []
         system_instruction_text = ""
         is_system_phase = use_system_prompt
+        logger.info(f"Converting {len(messages)} messages to Gemini format")
+        
         for i, message in enumerate(messages):
             role = message.role
             content = message.content
-
             if isinstance(content, str):
                 if is_system_phase and role == 'system':
                     if system_instruction_text:
@@ -226,44 +227,62 @@ class GeminiClient:
                             {"role": role_to_use, "parts": [{"text": content}]})
             elif isinstance(content, list):
                 parts = []
-                for item in content:
+                logger.info(f"处理多模态内容: 包含 {len(content)} 个项目")
+                
+                for i, item in enumerate(content):
                     if item.get('type') == 'text':
+                        logger.info(f"项目 {i}: 文本内容 '{item.get('text')[:30]}...'")
                         parts.append({"text": item.get('text')})
                     elif item.get('type') == 'image_url':
                         image_data = item.get('image_url', {}).get('url', '')
+                        logger.info(f"项目 {i}: 图片URL (长度: {len(image_data) if image_data else 0})")
+                        
                         if image_data.startswith('data:image/'):
                             try:
                                 mime_type, base64_data = image_data.split(';')[0].split(':')[1], image_data.split(',')[1]
+                                logger.info(f"图片 {i}: MIME类型 '{mime_type}', Base64数据长度: {len(base64_data)}")
                                 parts.append({
                                     "inline_data": {
                                         "mime_type": mime_type,
                                         "data": base64_data
                                     }
                                 })
-                            except (IndexError, ValueError):
-                                errors.append(
-                                    f"Invalid data URI for image: {image_data}")
+                            except (IndexError, ValueError) as e:
+                                error_msg = f"Invalid data URI for image: {image_data[:30]}..."
+                                logger.error(f"处理图片 {i} 时出错: {str(e)}, {error_msg}")
+                                errors.append(error_msg)
                         else:
-                            errors.append(
-                                f"Invalid image URL format for item: {item}")
-
+                            error_msg = f"Invalid image URL format for item: {item}"
+                            logger.error(f"图片 {i} 格式错误: {error_msg}")
+                            errors.append(error_msg)
+                
+                logger.info(f"多模态内容处理完成: 生成了 {len(parts)} 个部分")
+                
                 if parts:
                     if role in ['user', 'system']:
                         role_to_use = 'user'
                     elif role == 'assistant':
                         role_to_use = 'model'
                     else:
-                        errors.append(f"Invalid role: {role}")
+                        error_msg = f"Invalid role: {role}"
+                        logger.error(error_msg)
+                        errors.append(error_msg)
                         continue
+                    
                     if gemini_history and gemini_history[-1]['role'] == role_to_use:
+                        logger.info(f"将 {len(parts)} 个部分添加到现有的 {role_to_use} 消息中")
                         gemini_history[-1]['parts'].extend(parts)
                     else:
+                        logger.info(f"创建新的 {role_to_use} 消息，包含 {len(parts)} 个部分")
                         gemini_history.append(
                             {"role": role_to_use, "parts": parts})
-        if errors:
-            return errors
-        else:
-            return gemini_history, {"parts": [{"text": system_instruction_text}]}
+            
+            if errors:
+                logger.error(f"转换过程中发生 {len(errors)} 个错误: {errors}")
+                return errors
+            else:
+                logger.info(f"转换完成: 生成了 {len(gemini_history)} 个Gemini消息")
+                return gemini_history, {"parts": [{"text": system_instruction_text}]}
 
     @staticmethod
     async def list_available_models(api_key) -> list:
