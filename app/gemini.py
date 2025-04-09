@@ -293,7 +293,13 @@ class GeminiClient:
                         for sub_item in item:
                             if isinstance(sub_item, (dict, str)):
                                 self._process_content_item(sub_item, parts, j, errors)
-                    # 处理字典或字符串的情况
+                    # 处理嵌套字典的情况，特别是当字典中包含text字段且text字段是列表时
+                    elif isinstance(item, dict) and 'type' in item and item['type'] == 'text' and isinstance(item.get('text'), list):
+                        logger.info(f"检测到嵌套的多模态内容: {item}")
+                        for sub_item in item['text']:
+                            if isinstance(sub_item, (dict, str)):
+                                self._process_content_item(sub_item, parts, j, errors)
+                    # 处理普通字典或字符串的情况
                     elif isinstance(item, (dict, str)):
                         self._process_content_item(item, parts, j, errors)
                 
@@ -326,7 +332,7 @@ class GeminiClient:
             if system_instruction_text:
                 logger.info(f"系统指令: '{system_instruction_text[:50]}...'")
             return gemini_history, {"parts": [{"text": system_instruction_text}]}
-            
+
     @staticmethod
     def _process_content_item(item, parts, index, errors):
         """处理单个内容项（文本或图片）"""
