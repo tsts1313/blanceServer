@@ -272,36 +272,40 @@ class GeminiClient:
                 for j, item in enumerate(content):
                     if isinstance(item, str):
                         try:
-                            item = json.loads(item.replace("'", '"'))
-                        except json.JSONDecodeError:
-                            try:
+                            # 处理字符串化的字典
+                            if item.startswith("{'type'"):
                                 item = eval(item)
-                            except Exception as e:
-                                logger.error(f"解析字符串到字典失败: {str(e)}")
-                                continue
+                            else:
+                                item = json.loads(item.replace("'", '"'))
+                        except (json.JSONDecodeError, SyntaxError) as e:
+                            logger.error(f"解析字符串到字典失败: {str(e)}")
+                            continue
                     
-                    # 处理嵌套的列表内容
-                    if isinstance(item, list):
-                        for sub_item in item:
-                            if isinstance(sub_item, dict):
-                                if sub_item.get('type') == 'text':
-                                    parts.append({"text": sub_item.get('text', '')})
-                                elif sub_item.get('type') == 'image_url':
-                                    image_data = sub_item.get('image_url', {}).get('url', '')
-                                    if image_data.startswith('data:image/'):
-                                        try:
-                                            mime_type = image_data.split(';')[0].split(':')[1]
-                                            base64_data = image_data.split(',')[1]
-                                            parts.append({
-                                                "inlineData": {
-                                                    "data": base64_data,
-                                                    "mimeType": mime_type
-                                                }
-                                            })
-                                        except (IndexError, ValueError) as e:
-                                            error_msg = f"Invalid data URI for image: {image_data[:30]}..."
-                                            logger.error(f"处理图片时出错: {str(e)}, {error_msg}")
-                                            errors.append(error_msg)
+                    if not isinstance(item, dict):
+                        errors.append(f"Invalid item type: {type(item).__name__}")
+                        continue
+                    
+                    if item.get('type') == 'text':
+                        text_content = item.get('text', '')
+                        if isinstance(text_content, (list, tuple)):
+                            text_content = ' '.join(str(x) for x in text_content)
+                        parts.append({"text": text_content})
+                    elif item.get('type') == 'image_url':
+                        image_data = item.get('image_url', {}).get('url', '')
+                        if image_data.startswith('data:image/'):
+                            try:
+                                mime_type = image_data.split(';')[0].split(':')[1]
+                                base64_data = image_data.split(',')[1]
+                                parts.append({
+                                    "inlineData": {
+                                        "data": base64_data,
+                                        "mimeType": mime_type
+                                    }
+                                })
+                            except (IndexError, ValueError) as e:
+                                error_msg = f"Invalid data URI for image: {image_data[:30]}..."
+                                logger.error(f"处理图片 {j} 时出错: {str(e)}, {error_msg}")
+                                errors.append(error_msg)
                         continue
                     
                     # 处理普通字典内容
