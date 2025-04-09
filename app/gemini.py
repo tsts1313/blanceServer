@@ -209,7 +209,7 @@ class GeminiClient:
             role = message.role
             content = message.content
             
-            #logger.info(f"处理消息 {i}: role={role}, 内容类型={type(content).__name__}")
+            logger.info(f"处理消息 {i}: role={role}, 内容类型={type(content).__name__}")
 
             # 检查是否是字符串化的JSON数组
             if isinstance(content, str) and content.startswith('[{') and content.endswith('}]'):
@@ -250,11 +250,7 @@ class GeminiClient:
                             {"role": role_to_use, "parts": [{"text": content}]})
             elif isinstance(content, list):
                 parts = []
-                #logger.info(f"处理多模态内容: 包含 {len(content)} 个项目")
-                
-                # 先处理所有文本内容
-                text_parts = []
-                image_parts = []
+                logger.info(f"处理多模态内容: 包含 {len(content)} 个项目")
                 
                 for j, item in enumerate(content):
                     if not isinstance(item, dict):
@@ -265,7 +261,7 @@ class GeminiClient:
                         text_content = item.get('text', '')
                         if isinstance(text_content, list):
                             text_content = ' '.join([str(x) for x in text_content])
-                        text_parts.append({"text": text_content})
+                        parts.append({"text": text_content})
                     elif item.get('type') == 'image_url':
                         image_data = item.get('image_url', {}).get('url', '')
                         
@@ -273,7 +269,7 @@ class GeminiClient:
                             try:
                                 mime_type = image_data.split(';')[0].split(':')[1]
                                 base64_data = image_data.split(',')[1]
-                                image_parts.append({
+                                parts.append({
                                     "inlineData": {
                                         "data": base64_data,
                                         "mimeType": mime_type
@@ -289,7 +285,7 @@ class GeminiClient:
                                 response.raise_for_status()
                                 mime_type = response.headers.get('Content-Type', 'image/jpeg')
                                 base64_data = base64.b64encode(response.content).decode('utf-8')
-                                image_parts.append({
+                                parts.append({
                                     "inlineData": {
                                         "data": base64_data,
                                         "mimeType": mime_type
@@ -299,10 +295,6 @@ class GeminiClient:
                                 error_msg = f"Failed to download image: {str(e)}"
                                 logger.error(f"处理图片 {j} 时出错: {error_msg}")
                                 errors.append(error_msg)
-                
-                # 按照官方示例的格式组合内容
-                parts.extend(image_parts)
-                parts.extend(text_parts)
                 
                 logger.info(f"多模态内容处理完成: 生成了 {len(parts)} 个部分")
                 
