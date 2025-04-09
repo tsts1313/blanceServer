@@ -193,7 +193,7 @@ class GeminiClient:
         response.raise_for_status()
         return ResponseWrapper(response.json())
 
-        def convert_messages(self, messages, use_system_prompt=False):
+    def convert_messages(self, messages, use_system_prompt=False):
         gemini_history = []
         errors = []
         system_instruction_text = ""
@@ -223,7 +223,27 @@ class GeminiClient:
             
             if isinstance(content, str):
                 # 处理文本内容的代码保持不变
-                # ... 现有代码 ...
+                if is_system_phase and role == 'system':
+                    if system_instruction_text:
+                        system_instruction_text += "\n" + content
+                    else:
+                        system_instruction_text = content
+                else:
+                    is_system_phase = False
+
+                    if role in ['user', 'system']:
+                        role_to_use = 'user'
+                    elif role == 'assistant':
+                        role_to_use = 'model'
+                    else:
+                        errors.append(f"Invalid role: {role}")
+                        continue
+
+                    if gemini_history and gemini_history[-1]['role'] == role_to_use:
+                        gemini_history[-1]['parts'].append({"text": content})
+                    else:
+                        gemini_history.append(
+                            {"role": role_to_use, "parts": [{"text": content}]})
             elif isinstance(content, list):
                 parts = []
                 logger.info(f"处理多模态内容: 包含 {len(content)} 个项目")
@@ -283,7 +303,6 @@ class GeminiClient:
                         gemini_history.append(
                             {"role": role_to_use, "parts": parts})
         
-        # 这些语句应该在循环外部，与for循环保持相同的缩进级别
         if errors:
             logger.error(f"转换过程中发生 {len(errors)} 个错误: {errors}")
             return errors
