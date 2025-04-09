@@ -213,23 +213,32 @@ class GeminiClient:
 
             # 检查是否是字符串化的JSON数组
             if isinstance(content, str) and content.startswith('[{') and content.endswith('}]'):
+                logger.info(f"检测到可能是字符串化的JSON数组，尝试解析: {content[:50]}...")
                 try:
+                    # 尝试将字符串解析为JSON
                     parsed_content = json.loads(content)
                     if isinstance(parsed_content, list):
                         logger.info(f"成功解析为JSON数组，包含 {len(parsed_content)} 个项目")
+                        # 将解析后的内容替换原始内容，然后按列表处理
                         content = parsed_content
                 except json.JSONDecodeError as e:
                     logger.error(f"JSON解析失败: {str(e)}")
+                    # 继续按字符串处理
             
             if isinstance(content, str):
-                # 处理字符串内容
+                # 检查是否包含特殊格式的图文混合内容
                 if "{'type': 'text'" in content and "'type': 'image_url'" in content:
                     try:
+                        # 将字符串分割成单独的JSON对象
                         items = [item.strip() for item in content.split("} {")]
                         items = [item.strip("{}") for item in items]
+                        
+                        # 解析每个部分
                         parts = []
                         for item in items:
+                            # 将字符串转换为字典
                             item_dict = eval(f"{{{item}}}")
+                            
                             if item_dict.get('type') == 'text':
                                 parts.append({"text": item_dict['text']})
                             elif item_dict.get('type') == 'image_url':
@@ -243,14 +252,16 @@ class GeminiClient:
                                             "mimeType": mime_type
                                         }
                                     })
+                        
                         if parts:
                             role_to_use = 'user' if role in ['user', 'system'] else 'model'
                             gemini_history.append({"role": role_to_use, "parts": parts})
                             continue
+                            
                     except Exception as e:
                         logger.error(f"特殊格式解析失败: {str(e)}")
-
-                # 处理普通文本
+                        # 如果解析失败，继续按普通文本处理
+                # 处理文本内容的代码保持不变
                 if is_system_phase and role == 'system':
                     if system_instruction_text:
                         system_instruction_text += "\n" + content
@@ -258,61 +269,40 @@ class GeminiClient:
                         system_instruction_text = content
                 else:
                     is_system_phase = False
-                    role_to_use = 'user' if role in ['user', 'system'] else 'model'
+
+                    if role in ['user', 'system']:
+                        role_to_use = 'user'
+                    elif role == 'assistant':
+                        role_to_use = 'model'
+                    else:
+                        errors.append(f"Invalid role: {role}")
+                        continue
+
                     if gemini_history and gemini_history[-1]['role'] == role_to_use:
                         gemini_history[-1]['parts'].append({"text": content})
                     else:
-                        gemini_history.append({"role": role_to_use, "parts": [{"text": content}]})
-
+                        gemini_history.append(
+                            {"role": role_to_use, "parts": [{"text": content}]})
             elif isinstance(content, list):
-                # 处理列表内容
                 parts = []
                 logger.info(f"处理多模态内容: 包含 {len(content)} 个项目")
                 
                 for j, item in enumerate(content):
+                    # 如果是字符串，尝试解析成字典
                     if isinstance(item, str):
                         try:
-                            # 处理字符串化的字典
-                            if item.startswith("{'type'"):
-                                item = eval(item)
-                            else:
-                                item = json.loads(item.replace("'", '"'))
-                        except (json.JSONDecodeError, SyntaxError) as e:
-                            logger.error(f"解析字符串到字典失败: {str(e)}")
-                            continue
-                    
-                    if not isinstance(item, dict):
-                        errors.append(f"Invalid item type: {type(item).__name__}")
-                        continue
-                    
-                    if item.get('type') == 'text':
-                        text_content = item.get('text', '')
-                        if isinstance(text_content, (list, tuple)):
-                            text_content = ' '.join(str(x) for x in text_content)
-                        parts.append({"text": text_content})
-                    elif item.get('type') == 'image_url':
-                        image_data = item.get('image_url', {}).get('url', '')
-                        if image_data.startswith('data:image/'):
+                            item = json.loads(item.replace("'", '"'))
+                        except json.JSONDecodeError:
                             try:
-                                mime_type = image_data.split(';')[0].split(':')[1]
-                                base64_data = image_data.split(',')[1]
-                                parts.append({
-                                    "inlineData": {
-                                        "data": base64_data,
-                                        "mimeType": mime_type
-                                    }
-                                })
-                            except (IndexError, ValueError) as e:
-                                error_msg = f"Invalid data URI for image: {image_data[:30]}..."
-                                logger.error(f"处理图片 {j} 时出错: {str(e)}, {error_msg}")
-                                errors.append(error_msg)
-                        continue
+                                item = eval(item)  # 如果 JSON 解析失败，尝试用 eval
+                            except Exception as e:
+                                logger.error(f"解析字符串到字典失败: {str(e)}")
+                                continue
                     
-                    # 处理普通字典内容
                     if not isinstance(item, dict):
                         errors.append(f"Invalid item type: {type(item).__name__}")
                         continue
-                    
+                        
                     if item.get('type') == 'text':
                         text_content = item.get('text', '')
                         if isinstance(text_content, list):
@@ -320,6 +310,7 @@ class GeminiClient:
                         parts.append({"text": text_content})
                     elif item.get('type') == 'image_url':
                         image_data = item.get('image_url', {}).get('url', '')
+                        
                         if image_data.startswith('data:image/'):
                             try:
                                 mime_type = image_data.split(';')[0].split(':')[1]
@@ -334,22 +325,53 @@ class GeminiClient:
                                 error_msg = f"Invalid data URI for image: {image_data[:30]}..."
                                 logger.error(f"处理图片 {j} 时出错: {str(e)}, {error_msg}")
                                 errors.append(error_msg)
+                        else:
+                            # 处理非data URI的图片URL
+                            try:
+                                response = requests.get(image_data)
+                                response.raise_for_status()
+                                mime_type = response.headers.get('Content-Type', 'image/jpeg')
+                                base64_data = base64.b64encode(response.content).decode('utf-8')
+                                parts.append({
+                                    "inlineData": {
+                                        "data": base64_data,
+                                        "mimeType": mime_type
+                                    }
+                                })
+                            except Exception as e:
+                                error_msg = f"无法下载图片: {image_data[:30]}..."
+                                logger.error(f"处理图片 {j} 时出错: {str(e)}, {error_msg}")
+                                errors.append(error_msg)
+                
+                logger.info(f"多模态内容处理完成: 生成了 {len(parts)} 个部分")
                 
                 if parts:
-                    role_to_use = 'user' if role in ['user', 'system'] else 'model'
+                    if role in ['user', 'system']:
+                        role_to_use = 'user'
+                    elif role == 'assistant':
+                        role_to_use = 'model'
+                    else:
+                        error_msg = f"Invalid role: {role}"
+                        logger.error(error_msg)
+                        errors.append(error_msg)
+                        continue
+                    
                     if gemini_history and gemini_history[-1]['role'] == role_to_use:
+                        logger.info(f"将 {len(parts)} 个部分添加到现有的 {role_to_use} 消息中")
                         gemini_history[-1]['parts'].extend(parts)
                     else:
-                        gemini_history.append({"role": role_to_use, "parts": parts})
+                        logger.info(f"创建新的 {role_to_use} 消息，包含 {len(parts)} 个部分")
+                        gemini_history.append(
+                            {"role": role_to_use, "parts": parts})
         
         if errors:
             logger.error(f"转换过程中发生 {len(errors)} 个错误: {errors}")
             return errors
-        
-        logger.info(f"转换完成: 生成了 {len(gemini_history)} 个Gemini消息")
-        if system_instruction_text:
-            logger.info(f"系统指令: '{system_instruction_text[:50]}...'")
-        return gemini_history, {"parts": [{"text": system_instruction_text}]}
+        else:
+            logger.info(f"转换完成: 生成了 {len(gemini_history)} 个Gemini消息")
+            if system_instruction_text:
+                logger.info(f"系统指令: '{system_instruction_text[:50]}...'")
+            return gemini_history, {"parts": [{"text": system_instruction_text}]}
 
     @staticmethod
     async def list_available_models(api_key) -> list:
