@@ -192,7 +192,7 @@ class GeminiClient:
         if system_instruction:
             data["system_instruction"] = system_instruction
 
-        logger.info(f"完整请求payload:\n{json.dumps(data, indent=2, ensure_ascii=False)}")
+        #logger.info(f"完整请求payload:\n{json.dumps(data, indent=2, ensure_ascii=False)}")
         response = requests.post(url, headers=headers, json=data)
         response.raise_for_status()
         return ResponseWrapper(response.json())
@@ -209,7 +209,7 @@ class GeminiClient:
             role = message.role
             content = message.content
             
-            logger.info(f"处理消息 {i}: role={role}, 内容类型={type(content).__name__}")
+            #logger.info(f"处理消息 {i}: role={role}, 内容类型={type(content).__name__}")
 
             # 检查是否是字符串化的JSON数组
             if isinstance(content, str) and content.startswith('[{') and content.endswith('}]'):
