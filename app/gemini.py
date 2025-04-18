@@ -115,12 +115,18 @@ class GeminiClient:
         headers = {
             "Content-Type": "application/json",
         }
+        generation_config = {
+            "temperature": request.temperature,
+            "maxOutputTokens": request.max_tokens,
+        }
+        # 将 thinkingConfig (如果存在) 移入 generation_config
+        if "thinkingConfig" in request_config:
+            generation_config["thinkingConfig"] = request_config.pop("thinkingConfig") # 使用 pop 避免重复添加
+
         data = {
             "contents": contents,
-            "generationConfig": {
-                "temperature": request.temperature,
-                "maxOutputTokens": request.max_tokens,
-            },
+            "generationConfig": generation_config,
+            # 将 request_config 中剩余的顶层字段 (如 safety_settings, tools) 添加进来
             **request_config
         }
         if system_instruction:
@@ -180,12 +186,18 @@ class GeminiClient:
         headers = {
             "Content-Type": "application/json",
         }
+        generation_config = {
+            "temperature": request.temperature,
+            "maxOutputTokens": request.max_tokens,
+        }
+        # 将 thinkingConfig (如果存在) 移入 generation_config
+        if "thinkingConfig" in request_config:
+            generation_config["thinkingConfig"] = request_config.pop("thinkingConfig") # 使用 pop 避免重复添加
+
         data = {
             "contents": contents,
-            "generationConfig": {
-                "temperature": request.temperature,
-                "maxOutputTokens": request.max_tokens,
-            },
+            "generationConfig": generation_config,
+            # 将 request_config 中剩余的顶层字段 (如 safety_settings, tools) 添加进来
             **request_config
         }
         
