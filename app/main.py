@@ -105,6 +105,44 @@ tool_settings = {
     "tools": [{"googleSearch": {}}] if ENABLE_SEARCH else []
 }
 
+# 新增：读取和处理 thinkingBudget 环境变量
+THINKING_BUDGET_STR = os.environ.get("THINKING_BUDGET")
+EFFECTIVE_THINKING_BUDGET = None
+CONFIGURED_THINKING_BUDGET_DISPLAY = "未配置" # 用于在HTML页面显示
+if THINKING_BUDGET_STR is not None:
+    try:
+        tb_value = int(THINKING_BUDGET_STR)
+        if tb_value == 0:
+            EFFECTIVE_THINKING_BUDGET = 0
+            CONFIGURED_THINKING_BUDGET_DISPLAY = f"0 (思考已禁用)"
+            log_msg = format_log_message('INFO', f"THINKING_BUDGET 配置为 0，思考功能已禁用。")
+            logger.info(log_msg)
+        elif 1 <= tb_value <= 1024:
+            EFFECTIVE_THINKING_BUDGET = 1024
+            CONFIGURED_THINKING_BUDGET_DISPLAY = f"{tb_value} (生效值为 1024)"
+            log_msg = format_log_message('INFO', f"THINKING_BUDGET 配置为 {tb_value}，生效值为 1024。")
+            logger.info(log_msg)
+        elif 1024 < tb_value <= 24576:
+            EFFECTIVE_THINKING_BUDGET = tb_value
+            CONFIGURED_THINKING_BUDGET_DISPLAY = f"{tb_value}"
+            log_msg = format_log_message('INFO', f"THINKING_BUDGET 配置为 {tb_value}，在有效范围内。")
+            logger.info(log_msg)
+        elif tb_value > 24576:
+            EFFECTIVE_THINKING_BUDGET = 24576
+            CONFIGURED_THINKING_BUDGET_DISPLAY = f"{tb_value} (生效值为 24576)"
+            log_msg = format_log_message('INFO', f"THINKING_BUDGET 配置为 {tb_value}，超出上限，生效值为 24576。")
+            logger.info(log_msg)
+        else: # tb_value < 0
+            log_msg = format_log_message('WARNING', f"环境变量 THINKING_BUDGET 的值 '{tb_value}' 为负数，无效，将不生效。")
+            logger.warning(log_msg)
+            CONFIGURED_THINKING_BUDGET_DISPLAY = f"{tb_value} (无效值，已忽略)"
+    except ValueError:
+        log_msg = format_log_message('WARNING', f"环境变量 THINKING_BUDGET 的值 '{THINKING_BUDGET_STR}' 不是有效的整数，将不生效。")
+        logger.warning(log_msg)
+        CONFIGURED_THINKING_BUDGET_DISPLAY = f"'{THINKING_BUDGET_STR}' (非整数，已忽略)"
+
+
+
 key_manager = APIKeyManager() # 实例化 APIKeyManager，栈会在 __init__ 中初始化
 current_api_key = key_manager.get_available_key()
 
@@ -198,6 +236,12 @@ async def process_request(chat_request: ChatCompletionRequest, http_request: Req
         **tool_settings,  # 包含安全设置和工具配置
         "safety_settings": safety_settings_g2 if 'gemini-2.0-flash-exp' in chat_request.model else safety_settings
     }
+
+    # 新增：根据模型和配置添加 thinkingConfig
+    if "gemini-2.5" in chat_request.model and EFFECTIVE_THINKING_BUDGET is not None:
+        request_config["thinkingConfig"] = {"thinkingBudget": EFFECTIVE_THINKING_BUDGET}
+        log_msg = format_log_message('DEBUG', f"为模型 {chat_request.model} 应用 thinkingBudget: {EFFECTIVE_THINKING_BUDGET}", extra={'request_type': request_type, 'model': chat_request.model})
+        logger.debug(log_msg) 
 
     retry_attempts = len(key_manager.api_keys) if key_manager.api_keys else 1 # 重试次数等于密钥数量，至少尝试 1 次
     for attempt in range(1, retry_attempts + 1):
@@ -385,6 +429,7 @@ async def root():
             <p>每分钟请求限制: {MAX_REQUESTS_PER_MINUTE}</p>
             <p>每IP每日请求限制: {MAX_REQUESTS_PER_DAY_PER_IP}</p>
             <p>最大重试次数: {len(key_manager.api_keys)}</p>
+            <p>思考预算 (thinkingBudget): <span class="feature">{CONFIGURED_THINKING_BUDGET_DISPLAY}</span> (仅对 gemini-2.5 模型生效)</p>
         </div>
     </body>
     </html>
