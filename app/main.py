@@ -281,7 +281,7 @@ async def process_request(chat_request: ChatCompletionRequest, http_request: Req
                 async def run_gemini_completion():
                     try:
                         response_content = await asyncio.to_thread(gemini_client.complete_chat, chat_request, contents, request_config, system_instruction)
-                        log_msg = format_log_message('INFO', f"API调用成功，返回内容：{response_content}", extra={'key': current_api_key[:8],'request_type': request_type,'model': chat_request.model})
+                        log_msg = format_log_message('INFO', f"API调用成功，返回内容：{response_content.text}", extra={'key': current_api_key[:8],'request_type': request_type,'model': chat_request.model})
                         logger.info(log_msg)
                         return response_content
                     except asyncio.CancelledError:
@@ -334,9 +334,9 @@ async def process_request(chat_request: ChatCompletionRequest, http_request: Req
                             continue
                         response = ChatCompletionResponse(id="chatcmpl-someid", object="chat.completion", created=1234567890, model=chat_request.model,
                                                         choices=[{"index": 0, "message": {"role": "assistant", "content": response_content.text}, "finish_reason": "stop"}])
-                        log_msg = format_log_message('INFO', "Gemini API 返回响应", extra=extra_log_empty_response)
-                        logger.info(log_msg)                        
                         extra_log_success = {'key': current_api_key[:8], 'request_type': request_type, 'model': chat_request.model, 'status_code': 200}
+                        log_msg = format_log_message('INFO', "Gemini API 返回响应", extra=extra_log_success)
+                        logger.info(log_msg)
                         log_msg = format_log_message('INFO', "请求处理成功", extra=extra_log_success)
                         logger.info(log_msg)
                         return response
